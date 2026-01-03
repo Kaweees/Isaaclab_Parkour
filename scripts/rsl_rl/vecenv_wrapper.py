@@ -1,14 +1,15 @@
-from rsl_rl.env import VecEnv
-from parkour_isaaclab.envs import ParkourManagerBasedRLEnv
 import gymnasium as gym
 import torch
+from rsl_rl.env import VecEnv
+
+from parkour_isaaclab.envs import ParkourManagerBasedRLEnv
+
 
 class ParkourRslRlVecEnvWrapper(VecEnv):
     def __init__(self, env: ParkourManagerBasedRLEnv, clip_actions: float | None = None):
         if not isinstance(env.unwrapped, ParkourManagerBasedRLEnv):
             raise ValueError(
-                "The environment must be inherited from ParkourManagerBasedRLEnv. Environment type:"
-                f" {type(env)}"
+                f"The environment must be inherited from ParkourManagerBasedRLEnv. Environment type: {type(env)}"
             )
         # initialize the wrapper
         self.env = env
@@ -44,7 +45,6 @@ class ParkourRslRlVecEnvWrapper(VecEnv):
 
         # reset at the start since the RSL-RL runner does not call reset
         self.env.reset()
-
 
     def __str__(self):
         """Returns the wrapper name and the :attr:`env` representation string."""
@@ -121,10 +121,10 @@ class ParkourRslRlVecEnvWrapper(VecEnv):
     Operations - MDP
     """
 
-    def seed(self, seed: int = -1) -> int:  # noqa: D102
+    def seed(self, seed: int = -1) -> int:
         return self.unwrapped.seed(seed)
 
-    def reset(self) -> tuple[torch.Tensor, dict]:  # noqa: D102
+    def reset(self) -> tuple[torch.Tensor, dict]:
         # reset the environment
         obs_dict, _ = self.env.reset()
         # return observations
@@ -149,7 +149,7 @@ class ParkourRslRlVecEnvWrapper(VecEnv):
         # return the step information
         return obs, rew, dones, extras
 
-    def close(self):  # noqa: D102
+    def close(self):
         return self.env.close()
 
     """

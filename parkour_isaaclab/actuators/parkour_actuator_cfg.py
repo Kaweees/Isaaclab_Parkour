@@ -3,15 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from collections.abc import Iterable
 
-from isaaclab.utils import configclass
 from isaaclab.actuators.actuator_cfg import DCMotorCfg
+from isaaclab.utils import configclass
+
 from . import parkour_actuator_pd
+
 
 @configclass
 class ParkourDCMotorCfg(DCMotorCfg):
-
     class_type: type = parkour_actuator_pd.ParkourDCMotor
 
     saturation_effort: dict[str, float] | None = None

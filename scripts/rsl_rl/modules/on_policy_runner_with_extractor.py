@@ -1,25 +1,26 @@
-
 from __future__ import annotations
 
 import os
 import statistics
 import time
-import torch
+import warnings
 from collections import deque
+from copy import copy
 
 import rsl_rl
+import torch
 from rsl_rl.env import VecEnv
 from rsl_rl.modules import (
     EmpiricalNormalization,
 )
-from .actor_critic_with_encoder import ActorCriticRMA
-from rsl_rl.utils import store_code_state
 from rsl_rl.runners.on_policy_runner import OnPolicyRunner
+from rsl_rl.utils import store_code_state
+
+from .actor_critic_with_encoder import ActorCriticRMA
+from .distillation_with_extractor import DistillationWithExtractor
 from .feature_extractors import DefaultEstimator
-from .ppo_with_extractor import PPOWithExtractor 
-from .distillation_with_extractor import DistillationWithExtractor 
-from copy import copy 
-import warnings 
+from .ppo_with_extractor import PPOWithExtractor
+
 
 class OnPolicyRunnerWithExtractor(OnPolicyRunner):
     def __init__(self, env: VecEnv, train_cfg: dict, log_dir: str | None = None, device="cpu"):
@@ -30,7 +31,7 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
         self.policy_cfg = train_cfg["policy"]
         self.device = device
         self.env = env
-        self.mean_hist_latent_loss = 0.
+        self.mean_hist_latent_loss = 0.0
         self._configure_multi_gpu()
 
         if self.alg_cfg["class_name"] == "PPOWithExtractor":
@@ -42,7 +43,7 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
 
         obs, extras = self.env.get_observations()
         num_obs = obs.shape[1]
-        
+
         if self.training_type == "rl":
             if "critic" in extras["observations"]:
                 self.privileged_obs_type = "critic"  # actor-critic reinforcement learnig, e.g., PPO
@@ -61,9 +62,9 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
         estimator_class = eval(self.estimator_cfg.pop("class_name"))
         estimator: DefaultEstimator = estimator_class(**self.estimator_cfg).to(self.device)
         policy_class = eval(self.policy_cfg.pop("class_name"))
-        policy: ActorCriticRMA = policy_class(
-                                             num_privileged_obs, self.env.num_actions, **self.policy_cfg
-                                            ).to(self.device)
+        policy: ActorCriticRMA = policy_class(num_privileged_obs, self.env.num_actions, **self.policy_cfg).to(
+            self.device
+        )
 
         if "rnd_cfg" in self.alg_cfg and self.alg_cfg["rnd_cfg"] is not None:
             # check if rnd gated state is present
@@ -88,27 +89,27 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
         if self.depth_encoder_cfg is not None:
             alg_class = eval(self.alg_cfg.pop("class_name"))
             self.alg: DistillationWithExtractor = alg_class(
-                                                    policy = policy, 
-                                                    estimator= estimator, 
-                                                    estimator_paras= self.estimator_cfg,
-                                                    depth_encoder_cfg = self.depth_encoder_cfg,
-                                                    learning_rate = self.alg_cfg['learning_rate'],
-                                                    policy_cfg = self.policy_cfg, 
-                                                    max_grad_norm = self.alg_cfg['max_grad_norm'],
-                                                    device=self.device, 
-                                                    multi_gpu_cfg=self.multi_gpu_cfg
-                                                    )
+                policy=policy,
+                estimator=estimator,
+                estimator_paras=self.estimator_cfg,
+                depth_encoder_cfg=self.depth_encoder_cfg,
+                learning_rate=self.alg_cfg["learning_rate"],
+                policy_cfg=self.policy_cfg,
+                max_grad_norm=self.alg_cfg["max_grad_norm"],
+                device=self.device,
+                multi_gpu_cfg=self.multi_gpu_cfg,
+            )
         else:
             self.dagger_update_freq = self.alg_cfg.pop("dagger_update_freq")
             alg_class = eval(self.alg_cfg.pop("class_name"))
             self.alg: PPOWithExtractor = alg_class(
-                                                    policy, 
-                                                    estimator, 
-                                                    self.estimator_cfg,
-                                                    **self.alg_cfg, 
-                                                    device=self.device, 
-                                                    multi_gpu_cfg=self.multi_gpu_cfg
-                                                    )
+                policy,
+                estimator,
+                self.estimator_cfg,
+                **self.alg_cfg,
+                device=self.device,
+                multi_gpu_cfg=self.multi_gpu_cfg,
+            )
 
         self.num_steps_per_env = self.cfg["num_steps_per_env"]
         self.save_interval = self.cfg["save_interval"]
@@ -123,7 +124,6 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
             self.obs_normalizer = torch.nn.Identity().to(self.device)  # no normalization
             self.privileged_obs_normalizer = torch.nn.Identity().to(self.device)  # no normalization
         if self.depth_encoder_cfg is None:
-
             self.alg.init_storage(
                 self.training_type,
                 self.env.num_envs,
@@ -142,7 +142,7 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
         self.current_learning_iteration = 0
         self.git_status_repos = [rsl_rl.__file__]
 
-    def learn_rl(self, num_learning_iterations: int, init_at_random_ep_len: bool = False):  # noqa: C901
+    def learn_rl(self, num_learning_iterations: int, init_at_random_ep_len: bool = False):
         # initialize writer
         self.alg: PPOWithExtractor
         if self.log_dir is not None and self.writer is None and not self.disable_logs:
@@ -272,7 +272,7 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
             if hist_encoding:
                 print("Updating dagger...")
                 self.mean_hist_latent_loss = self.alg.update_dagger()
-            loss_dict['hist_latent'] = self.mean_hist_latent_loss
+            loss_dict["hist_latent"] = self.mean_hist_latent_loss
 
             stop = time.time()
             learn_time = stop - start
@@ -302,7 +302,7 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
 
     def learn_vision(self, num_learning_iterations, init_at_random_ep_len=False):
         if not isinstance(self.alg, DistillationWithExtractor):
-            raise TypeError('A algorithm must be DistillationWithExtractor, not a ', self.alg)
+            raise TypeError("A algorithm must be DistillationWithExtractor, not a ", self.alg)
         else:
             self.alg: DistillationWithExtractor
         if self.log_dir is not None and self.writer is None and not self.disable_logs:
@@ -329,8 +329,8 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
 
         obs, extras = self.env.get_observations()
         additional_obs = {}
-        additional_obs["delta_yaw_ok"] = extras['observations']['delta_yaw_ok'].to(self.device)
-        additional_obs["depth_camera"] = extras["observations"]['depth_camera'].to(self.device)
+        additional_obs["delta_yaw_ok"] = extras["observations"]["delta_yaw_ok"].to(self.device)
+        additional_obs["depth_camera"] = extras["observations"]["depth_camera"].to(self.device)
         obs = obs.to(self.device)
 
         self.alg.depth_encoder.train()
@@ -354,21 +354,25 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
             actions_buffer = []
             delta_yaw_ok_buffer = []
             yaws_buffer = []
-            for _ in range(self.depth_encoder_cfg['num_steps_per_env']):
-                if self.env.unwrapped.common_step_counter %5 == 0:
-                    obs_prop_depth = obs[:, :self.depth_encoder_cfg['num_prop']].clone()
+            for _ in range(self.depth_encoder_cfg["num_steps_per_env"]):
+                if self.env.unwrapped.common_step_counter % 5 == 0:
+                    obs_prop_depth = obs[:, : self.depth_encoder_cfg["num_prop"]].clone()
                     obs_prop_depth[:, 6:8] = 0
-                    depth_latent_and_yaw = self.alg.depth_encoder(additional_obs["depth_camera"].clone(), obs_prop_depth)  # clone is crucial to avoid in-place operation
+                    depth_latent_and_yaw = self.alg.depth_encoder(
+                        additional_obs["depth_camera"].clone(), obs_prop_depth
+                    )  # clone is crucial to avoid in-place operation
                     depth_latent = depth_latent_and_yaw[:, :-2]
-                    yaw = 1.5*depth_latent_and_yaw[:, -2:]
-                    yaws_buffer.append(obs[:,6:8].detach() - yaw)
+                    yaw = 1.5 * depth_latent_and_yaw[:, -2:]
+                    yaws_buffer.append(obs[:, 6:8].detach() - yaw)
                 with torch.no_grad():
                     actions_teacher = self.alg.policy.act_inference(obs, hist_encoding=True, scandots_latent=None)
-                    delta_yaw_ok_buffer.append(torch.nonzero(additional_obs["delta_yaw_ok"]).size(0) / additional_obs["delta_yaw_ok"].numel())
+                    delta_yaw_ok_buffer.append(
+                        torch.nonzero(additional_obs["delta_yaw_ok"]).size(0) / additional_obs["delta_yaw_ok"].numel()
+                    )
                 obs[additional_obs["delta_yaw_ok"], 6:8] = yaw.detach()[additional_obs["delta_yaw_ok"]]
                 actions_student = self.alg.depth_actor(obs, hist_encoding=True, scandots_latent=depth_latent)
                 actions_buffer.append(actions_teacher.detach() - actions_student)
-                
+
                 if it < num_pretrain_iter:
                     # Step the environment
                     obs, _, dones, infos = self.env.step(actions_teacher.detach().to(self.env.device))
@@ -379,8 +383,8 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
                     obs, _, dones, infos = self.env.step(actions_student.detach().to(self.env.device))
                     # Move to device
                     obs, dones = (obs.to(self.device), dones.to(self.device))
-                additional_obs['delta_yaw_ok'] = infos["observations"]['delta_yaw_ok']
-                additional_obs['depth_camera'] = infos["observations"]['depth_camera']
+                additional_obs["delta_yaw_ok"] = infos["observations"]["delta_yaw_ok"]
+                additional_obs["depth_camera"] = infos["observations"]["depth_camera"]
                 # perform normalization
                 obs = self.obs_normalizer(obs)
                 if self.log_dir is not None:
@@ -413,10 +417,12 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
             if self.log_dir is not None and not self.disable_logs:
                 # Log information
                 self.log_vision(locals())
-                if (it-self.start_learning_iteration < 2500 and it % self.save_interval == 0) or \
-                (it-self.start_learning_iteration < 5000 and it % (2*self.save_interval) == 0) or \
-                (it-self.start_learning_iteration >= 5000 and it % (5*self.save_interval) == 0):
-                        self.save(os.path.join(self.log_dir, f"model_{it}.pt"))
+                if (
+                    (it - self.start_learning_iteration < 2500 and it % self.save_interval == 0)
+                    or (it - self.start_learning_iteration < 5000 and it % (2 * self.save_interval) == 0)
+                    or (it - self.start_learning_iteration >= 5000 and it % (5 * self.save_interval) == 0)
+                ):
+                    self.save(os.path.join(self.log_dir, f"model_{it}.pt"))
             # Clear episode infos
             ep_infos.clear()
             # Save code state
@@ -433,7 +439,6 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
             self.save(os.path.join(self.log_dir, f"model_{self.current_learning_iteration}.pt"))
 
     def log_vision(self, locs, width=80, pad=35):
-        
         collection_size = self.num_steps_per_env * self.env.num_envs * self.gpu_world_size
         # Update total time-steps and time
         self.tot_timesteps += collection_size
@@ -457,19 +462,18 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
                 # log to logger and terminal
                 if "/" in key:
                     self.writer.add_scalar(key, value, locs["it"])
-                    ep_string += f"""{f'{key}:':>{pad}} {value:.4f}\n"""
+                    ep_string += f"""{f"{key}:":>{pad}} {value:.4f}\n"""
                 else:
                     self.writer.add_scalar("Episode/" + key, value, locs["it"])
-                    ep_string += f"""{f'Mean episode {key}:':>{pad}} {value:.4f}\n"""
-        
+                    ep_string += f"""{f"Mean episode {key}:":>{pad}} {value:.4f}\n"""
+
         fps = int(collection_size / (locs["collection_time"] + locs["learn_time"]))
 
         # -- Losses
         for key, value in locs["loss_dict"].items():
             self.writer.add_scalar(f"Loss_depth/{key}", value, locs["it"])
         self.writer.add_scalar("Loss/learning_rate", self.alg.learning_rate, locs["it"])
-        self.writer.add_scalar('Loss_depth/delta_yaw_ok_percent', locs['delta_yaw_ok_percentage'], locs["it"]) 
-
+        self.writer.add_scalar("Loss_depth/delta_yaw_ok_percent", locs["delta_yaw_ok_percentage"], locs["it"])
 
         self.writer.add_scalar("Perf/total_fps", fps, locs["it"])
         self.writer.add_scalar("Perf/collection time", locs["collection_time"], locs["it"])
@@ -485,35 +489,42 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
 
         if len(locs["lenbuffer"]) > 0:
             log_string = (
-                f"""{'#' * width}\n"""
-                f"""{str.center(width, ' ')}\n\n"""
-                f"""{'Computation:':>{pad}} {fps:.0f} steps/s (collection: {locs[
-                    'collection_time']:.3f}s, learning {locs['learn_time']:.3f}s)\n"""
+                f"""{"#" * width}\n"""
+                f"""{str.center(width, " ")}\n\n"""
+                f"""{"Computation:":>{pad}} {fps:.0f} steps/s (collection: {locs["collection_time"]:.3f}s, learning {
+                    locs["learn_time"]:.3f}s)\n"""
             )
             # -- Losses
             for key, value in locs["loss_dict"].items():
-                log_string += f"""{f'Mean {key} loss:':>{pad}} {value:.4f}\n"""
+                log_string += f"""{f"Mean {key} loss:":>{pad}} {value:.4f}\n"""
             # -- episode info
-            log_string += f"""{'Mean episode length:':>{pad}} {statistics.mean(locs['lenbuffer']):.2f}\n"""
+            log_string += f"""{"Mean episode length:":>{pad}} {statistics.mean(locs["lenbuffer"]):.2f}\n"""
         else:
             log_string = (
-                f"""{'#' * width}\n"""
-                f"""{str.center(width, ' ')}\n\n"""
-                f"""{'Computation:':>{pad}} {fps:.0f} steps/s (collection: {locs[
-                    'collection_time']:.3f}s, learning {locs['learn_time']:.3f}s)\n"""
-                f"""{'Delta yaw ok percentage:':>{pad}} {locs['delta_yaw_ok_percentage']:.4f}\n"""
-
+                f"""{"#" * width}\n"""
+                f"""{str.center(width, " ")}\n\n"""
+                f"""{"Computation:":>{pad}} {fps:.0f} steps/s (collection: {locs["collection_time"]:.3f}s, learning {
+                    locs["learn_time"]:.3f}s)\n"""
+                f"""{"Delta yaw ok percentage:":>{pad}} {locs["delta_yaw_ok_percentage"]:.4f}\n"""
             )
             for key, value in locs["loss_dict"].items():
-                log_string += f"""{f'{key}:':>{pad}} {value:.4f}\n"""
+                log_string += f"""{f"{key}:":>{pad}} {value:.4f}\n"""
         log_string += ep_string
         log_string += (
-            f"""{'-' * width}\n"""
-            f"""{'Total timesteps:':>{pad}} {self.tot_timesteps}\n"""
-            f"""{'Iteration time:':>{pad}} {iteration_time:.2f}s\n"""
-            f"""{'Time elapsed:':>{pad}} {time.strftime("%H:%M:%S", time.gmtime(self.tot_time))}\n"""
-            f"""{'ETA:':>{pad}} {time.strftime("%H:%M:%S", time.gmtime(self.tot_time / (locs['it'] - locs['start_iter'] + 1) * (
-                               locs['start_iter'] + locs['num_learning_iterations'] - locs['it'])))}\n"""
+            f"""{"-" * width}\n"""
+            f"""{"Total timesteps:":>{pad}} {self.tot_timesteps}\n"""
+            f"""{"Iteration time:":>{pad}} {iteration_time:.2f}s\n"""
+            f"""{"Time elapsed:":>{pad}} {time.strftime("%H:%M:%S", time.gmtime(self.tot_time))}\n"""
+            f"""{"ETA:":>{pad}} {
+                time.strftime(
+                    "%H:%M:%S",
+                    time.gmtime(
+                        self.tot_time
+                        / (locs["it"] - locs["start_iter"] + 1)
+                        * (locs["start_iter"] + locs["num_learning_iterations"] - locs["it"])
+                    ),
+                )
+            }\n"""
         )
         print(log_string)
 
@@ -521,7 +532,7 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
         # -- Save model
         saved_dict = {
             "model_state_dict": self.alg.policy.state_dict(),
-            'estimator_state_dict': self.alg.estimator.state_dict(),
+            "estimator_state_dict": self.alg.estimator.state_dict(),
             "optimizer_state_dict": self.alg.optimizer.state_dict(),
             "iter": self.current_learning_iteration,
             "infos": infos,
@@ -534,9 +545,9 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
         if self.empirical_normalization:
             saved_dict["obs_norm_state_dict"] = self.obs_normalizer.state_dict()
             saved_dict["privileged_obs_norm_state_dict"] = self.privileged_obs_normalizer.state_dict()
-        if self.depth_encoder_cfg is not None :
-            saved_dict['depth_encoder_state_dict'] = self.alg.depth_encoder.state_dict()
-            saved_dict['depth_actor_state_dict'] = self.alg.depth_actor.state_dict()
+        if self.depth_encoder_cfg is not None:
+            saved_dict["depth_encoder_state_dict"] = self.alg.depth_encoder.state_dict()
+            saved_dict["depth_actor_state_dict"] = self.alg.depth_actor.state_dict()
         # save model
         torch.save(saved_dict, path)
 
@@ -547,7 +558,7 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
     def load(self, path: str, load_optimizer: bool = True):
         loaded_dict = torch.load(path, weights_only=False)
         resumed_training = self.alg.policy.load_state_dict(loaded_dict["model_state_dict"])
-        self.alg.estimator.load_state_dict(loaded_dict['estimator_state_dict'])
+        self.alg.estimator.load_state_dict(loaded_dict["estimator_state_dict"])
         if self.alg.rnd:
             self.alg.rnd.load_state_dict(loaded_dict["rnd_state_dict"])
         if self.empirical_normalization:
@@ -557,14 +568,14 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
             else:
                 self.privileged_obs_normalizer.load_state_dict(loaded_dict["obs_norm_state_dict"])
         if self.depth_encoder_cfg is not None:
-            if 'depth_encoder_state_dict' not in loaded_dict:
+            if "depth_encoder_state_dict" not in loaded_dict:
                 warnings.warn("'depth_encoder_state_dict' key does not exist, not loading depth encoder...")
             else:
                 print("Saved depth encoder detected, loading...")
-                self.alg.depth_encoder.load_state_dict(loaded_dict['depth_encoder_state_dict'])
-            if 'depth_actor_state_dict' in loaded_dict:
+                self.alg.depth_encoder.load_state_dict(loaded_dict["depth_encoder_state_dict"])
+            if "depth_actor_state_dict" in loaded_dict:
                 print("Saved depth actor detected, loading...")
-                self.alg.depth_actor.load_state_dict(loaded_dict['depth_actor_state_dict'])
+                self.alg.depth_actor.load_state_dict(loaded_dict["depth_actor_state_dict"])
             else:
                 print("No saved depth actor, Copying actor critic actor to depth actor...")
                 self.alg.depth_actor.load_state_dict(self.alg.policy.actor.state_dict())
@@ -582,11 +593,11 @@ class OnPolicyRunnerWithExtractor(OnPolicyRunner):
 
     def get_estimator_inference_policy(self, device=None):
         self.alg: PPOWithExtractor
-        self.alg.estimator.eval() # switch to evaluation mode (dropout for example)
+        self.alg.estimator.eval()  # switch to evaluation mode (dropout for example)
         if device is not None:
             self.alg.estimator.to(device)
         return self.alg.estimator
-    
+
     def get_depth_encoder_inference_policy(self, device=None):
         self.alg.depth_encoder.eval()
         if device is not None:

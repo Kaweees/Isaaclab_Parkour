@@ -1,15 +1,11 @@
-import torch.nn as nn
 import torch
+import torch.nn as nn
 from rsl_rl.utils import resolve_nn_activation
 
+
 class DefaultEstimator(nn.Module):
-    def __init__(self,  
-                 num_prop,
-                 num_priv_explicit,
-                 hidden_dims=[256, 128, 64],
-                 activation="elu",
-                **kwargs):
-        super(DefaultEstimator, self).__init__()
+    def __init__(self, num_prop, num_priv_explicit, hidden_dims=[256, 128, 64], activation="elu", **kwargs):
+        super().__init__()
 
         self.input_dim = num_prop
         self.output_dim = num_priv_explicit
@@ -24,10 +20,10 @@ class DefaultEstimator(nn.Module):
                 estimator_layers.append(nn.Linear(hidden_dims[l], hidden_dims[l + 1]))
                 estimator_layers.append(activation)
         self.estimator = nn.Sequential(*estimator_layers)
-    
+
     def forward(self, input):
         return self.estimator(input)
-    
+
     def inference(self, input):
         with torch.no_grad():
             return self.estimator(input)
