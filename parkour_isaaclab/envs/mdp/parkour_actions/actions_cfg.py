@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from isaaclab.envs.mdp.actions.actions_cfg import JointPositionActionCfg
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import configclass
@@ -10,5 +12,5 @@ class DelayedJointPositionActionCfg(JointPositionActionCfg):
     class_type: type[ActionTerm] = DelayedJointPositionAction
     delay_update_global_steps: int = 24 * 8000
     history_length: int = 8
-    action_delay_steps: list[int] | int = [1, 1]
+    action_delay_steps: ClassVar[list[int] | int] = [1, 1]
     use_delay: bool = False

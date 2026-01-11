@@ -13,11 +13,11 @@ class DefaultEstimator(nn.Module):
         estimator_layers = []
         estimator_layers.append(nn.Linear(self.input_dim, hidden_dims[0]))
         estimator_layers.append(activation)
-        for l in range(len(hidden_dims)):
-            if l == len(hidden_dims) - 1:
-                estimator_layers.append(nn.Linear(hidden_dims[l], num_priv_explicit))
+        for layer in range(len(hidden_dims)):
+            if layer == len(hidden_dims) - 1:
+                estimator_layers.append(nn.Linear(hidden_dims[layer], num_priv_explicit))
             else:
-                estimator_layers.append(nn.Linear(hidden_dims[l], hidden_dims[l + 1]))
+                estimator_layers.append(nn.Linear(hidden_dims[layer], hidden_dims[layer + 1]))
                 estimator_layers.append(activation)
         self.estimator = nn.Sequential(*estimator_layers)
 

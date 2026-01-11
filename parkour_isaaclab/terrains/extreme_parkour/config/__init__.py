@@ -5,4 +5,4 @@
 
 """Pre-defined terrain configurations for the terrain generator."""
 
-from .parkour import *  # noqa: F401
+from .parkour import *  # noqa: F403,  # noqa: F401

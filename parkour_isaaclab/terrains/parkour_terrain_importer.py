@@ -33,11 +33,11 @@ class ParkourTerrainImporter(TerrainImporter):
         self.device = sim_utils.SimulationContext.instance().device  # type: ignore
 
         # create buffers for the terrains
-        self.terrain_prim_paths = list()
+        self.terrain_prim_paths = []
         self.terrain_origins = None
         self.env_origins = None  # assigned later when `configure_env_origins` is called
         # private variables
-        self._terrain_flat_patches = dict()
+        self._terrain_flat_patches = {}
 
         # auto-import the terrain based on the config
         if self.cfg.terrain_type == "generator":

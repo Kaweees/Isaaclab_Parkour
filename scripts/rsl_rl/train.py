@@ -5,7 +5,7 @@
 
 """Script to train RL agent with RSL-RL."""
 
-"""Launch Isaac Sim Simulator first."""
+# Launch Isaac Sim Simulator first.
 import argparse
 import os
 import sys

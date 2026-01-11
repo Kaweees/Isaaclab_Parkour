@@ -258,7 +258,7 @@ class ParkourManagerBasedRLEnv(ParkourManagerBasedEnv, gym.Env):
         self.curriculum_manager.compute(env_ids=env_ids)
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)
-        self.extras["log"] = dict()
+        self.extras["log"] = {}
         # -- parkour manager
         info = self.parkour_manager.reset(env_ids)
         self.extras["log"].update(info)

@@ -1,8 +1,8 @@
 from .extreme_parkour_terrains_cfg import (
-ExtremeParkourRoughTerrainCfg,
-ExtremeParkourGapTerrainCfg,
-ExtremeParkourHurdleTerrainCfg,
-ExtremeParkourStepTerrainCfg,
-ExtremeParkourTerrainCfg,
-ExtremeParkourDemoTerrainCfg
+    ExtremeParkourDemoTerrainCfg,
+    ExtremeParkourGapTerrainCfg,
+    ExtremeParkourHurdleTerrainCfg,
+    ExtremeParkourRoughTerrainCfg,
+    ExtremeParkourStepTerrainCfg,
+    ExtremeParkourTerrainCfg,
 )
